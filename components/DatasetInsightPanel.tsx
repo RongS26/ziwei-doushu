@@ -6,6 +6,7 @@ import { getLiuNianSiHua, getYearBranchIndex } from '@/lib/ziwei/sihua';
 import { getDaXianIndexForYear } from '@/lib/ziwei/yunxian-context';
 import { BRANCHES } from '@/lib/ziwei/constants';
 import type { TimeView } from './TimeNav';
+import type { Pattern } from '@/lib/ziwei/patterns';
 
 const PALACE_FOCUS: Record<string, string> = {
   命宫: '个人方向、角色定位与做事方式', 兄弟: '同辈协作、合伙分工与资源边界',
@@ -61,6 +62,8 @@ export default function DatasetInsightPanel({ chart, selectedPalace, view, year:
   onViewChange: (view: TimeView) => void; onYearChange: (year: number) => void;
 }) {
   const [topics, setTopics] = useState<Partial<Record<TopicKey, string>>>({});
+  const [patterns, setPatterns] = useState<Pattern[]>([]);
+  const [summary, setSummary] = useState<{ stars: string[]; keywords: string[]; nature: string } | null>(null);
   const [active, setActive] = useState<TopicKey>('overview');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -90,14 +93,14 @@ export default function DatasetInsightPanel({ chart, selectedPalace, view, year:
 
   useEffect(() => {
     const controller = new AbortController();
-    setLoading(true); setError(''); setTopics({});
+    setLoading(true); setError(''); setTopics({}); setPatterns([]); setSummary(null);
     fetch('/api/reading', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ birthInfo: { year, month, day, hour, gender } }), signal: controller.signal,
     }).then(async response => {
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '解读读取失败。');
-      if (!controller.signal.aborted) setTopics(data.topics);
+      if (!controller.signal.aborted) { setTopics(data.topics); setPatterns(data.patterns || []); setSummary(data.summary || null); }
     }).catch(cause => {
       if (!controller.signal.aborted) setError(cause.message || '解读读取失败。');
     }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
@@ -115,11 +118,12 @@ export default function DatasetInsightPanel({ chart, selectedPalace, view, year:
   return (
     <aside aria-label="原作者完整解读" className="card-glass rounded-xl overflow-hidden" style={{ minWidth: 0 }}>
       <div style={{ padding: 16, borderBottom: '1px solid var(--t-border)' }}>
-        <h2 style={{ fontSize: 18, fontWeight: 600, color: 'var(--t-gold)' }}>{isAnnual ? `${selectedYear} 流年 · 规则摘要` : '本命解读 · 13 个主题'}</h2>
+        <div className="label-section" style={{ marginBottom: 6 }}>ORIGINAL READING · 原作者内容</div>
+        <h2 style={{ fontSize: 22, fontWeight: 600, color: 'var(--t-gold)' }}>{isAnnual ? `${selectedYear} 流年 · 规则摘要` : '本命解读 · 13 个主题'}</h2>
         <div style={{ display: 'flex', gap: 12, marginTop: 12, color: 'var(--t-gold)' }}>
           <button onClick={() => onViewChange('mingpan')} aria-pressed={!isAnnual}>本命全文</button>
           <button onClick={() => onViewChange('liunian')} aria-pressed={isAnnual}>2026–2031 流年</button>
-          <a href="#ziwei-ai" style={{ textDecoration: 'underline' }}>向 AI 提问 ↓</a>
+          <a href="#ziwei-ai" onClick={() => document.getElementById('ziwei-ai')?.closest('details')?.setAttribute('open', '')} style={{ textDecoration: 'underline' }}>向 AI 提问 ↓</a>
         </div>
         <p style={{ fontSize: 12, color: 'var(--t-text2)', marginTop: 8, lineHeight: 1.7 }}>
           {isAnnual ? '2026 年基准 ＋ 2027–2031 往后五年。本地盘面摘要；完整报告与问答在下方 AI 区域。选择年份会同步更新盘面年干四化。' : '原作者 v4 数据集全文，按当前排盘日期、时辰及性别精确匹配。覆盖 1950–2026 年。本命正文不随大限切换改写；具体问题可使用下方 AI 问答。'}
@@ -142,6 +146,20 @@ export default function DatasetInsightPanel({ chart, selectedPalace, view, year:
           {exportError && <p role="alert">{exportError}</p>}
         </div>}
       </div>
+      {!isAnnual && summary && <div className="card-tinted" style={{ margin: '16px 16px 0', padding: 16 }}>
+        <div className="label-section">原引擎 · 命格概览</div>
+        <div style={{ fontSize: 21, color: 'var(--ac)', marginTop: 6 }}>{summary.stars.length ? summary.stars.join(' · ') : '命宫空宫'} <span style={{ fontSize: 12, color: 'var(--tx-3)' }}>{summary.nature}</span></div>
+        <p style={{ fontSize: 12, color: 'var(--tx-2)', marginTop: 6 }}>{summary.keywords.join(' · ')}</p>
+        {patterns.length > 0 && <details style={{ marginTop: 12, fontSize: 13 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--ac)' }}>查看原引擎识别的 {patterns.length} 个格局</summary>
+          {patterns.map((pattern, index) => <div key={`${pattern.name}-${index}`} className="card-inner" style={{ padding: 12, marginTop: 8, borderRadius: 8, lineHeight: 1.8 }}>
+            <strong style={{ color: 'var(--ac)' }}>{pattern.name}</strong>
+            <p style={{ color: 'var(--tx-2)' }}>{pattern.description}</p>
+            {pattern.conditions && <p style={{ fontSize: 11, color: 'var(--tx-3)' }}>成立条件：{pattern.conditions.required.join('、')}{pattern.conditions.breaking?.length ? `；限制：${pattern.conditions.breaking.join('、')}` : ''}</p>}
+            {pattern.source && <p style={{ fontSize: 11, color: 'var(--tx-3)' }}>原引擎标注出处：{pattern.source}</p>}
+          </div>)}
+        </details>}
+      </div>}
       <div ref={contentRef} role="tabpanel" aria-label={isAnnual ? `${selectedYear}流年解读` : TOPIC_LABEL[active]} aria-busy={!isAnnual && loading}
         style={{ padding: 20, maxHeight: '72vh', overflowY: 'auto', fontSize: 14, lineHeight: 1.9, color: 'var(--t-text)' }}>
         {!isAnnual && loading && <p role="status">正在读取 {year} 年解读，首次会下载约 2 MB 年份数据，请稍候…</p>}

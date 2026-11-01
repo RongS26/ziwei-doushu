@@ -5,9 +5,11 @@ import ChartBoard from '@/components/ChartBoard';
 import DatasetInsightPanel from '@/components/DatasetInsightPanel';
 import TimeNav, { type TimeView } from '@/components/TimeNav';
 import { generateChart, setBrightnessSchool } from '@/lib/ziwei/algorithm';
-import type { BirthInfo, ZiweiChart, Palace } from '@/lib/ziwei/types';
+import type { BirthInfo, ZiweiChart, Palace, Star } from '@/lib/ziwei/types';
 import { getDaXianIndexForYear } from '@/lib/ziwei/yunxian-context';
 import LocalAiPanel from '@/components/LocalAiPanel';
+import StarDetailPanel from '@/components/StarDetailPanel';
+import { useTheme } from '@/components/ThemeProvider';
 
 /**
  * 命盘页 —— 开源版「排盘引擎 Demo」
@@ -24,11 +26,20 @@ export default function ChartPage() {
   const [selectedPalace, setSelectedPalace] = useState<Palace | null>(null);
   const [view, setView] = useState<TimeView>('mingpan');
   const [liunianYear, setLiunianYear] = useState(2026);
+  const [starFocus, setStarFocus] = useState<{ star: Star; palaceName: string } | null>(null);
+  const { theme, toggle } = useTheme();
+  const navigation = <nav aria-label="原作者功能导航" className="flex flex-wrap items-center gap-3 mb-5 text-xs">
+    <a href="/" className="btn-ghost">← 原作者首页</a>
+    <a href="/library" className="btn-ghost">古籍原典库</a>
+    <a href="/knowledge" className="btn-ghost">十四主星概览</a>
+    <button onClick={toggle} className="btn-ghost">{theme === 'dark' ? '切换亮色' : '切换暗色'}</button>
+  </nav>;
 
   // ── 未起盘：展示出生信息表单 ──
   if (!chart) {
     return (
       <main style={{ maxWidth: 720, margin: '0 auto', padding: '48px 20px' }}>
+        {navigation}
         <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 8 }}>紫微斗数排盘</h1>
         <p style={{ color: '#888', marginBottom: 32, fontSize: 14, lineHeight: 1.7 }}>
           输入出生年月日时，开源排盘引擎即时生成命盘。
@@ -53,12 +64,14 @@ export default function ChartPage() {
   // ── 已起盘：命盘 + 解读 ──
   return (
     <main style={{ maxWidth: 1280, margin: '0 auto', padding: '24px 16px' }}>
+      {navigation}
       <button
         type="button"
-        onClick={() => { setChart(null); setSelectedPalace(null); }}
+        onClick={() => { setChart(null); setSelectedPalace(null); setStarFocus(null); }}
+        className="btn-ghost"
         style={{
           marginBottom: 16, padding: '6px 14px', cursor: 'pointer',
-          border: '1px solid #ccc', borderRadius: 8, background: 'transparent',
+          borderRadius: 8,
         }}
       >
         ← 重新起盘
@@ -74,12 +87,19 @@ export default function ChartPage() {
 
       <p style={{ fontSize: 12, color: '#999', marginTop: 12 }}>解读口径：v4 本命 · 现代修正 v2 亮度表。点击宫位可切换相关主题。</p>
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,480px)] gap-5 mt-4 items-start">
-        <ChartBoard chart={displayChart} onPalaceSelect={setSelectedPalace} view={view} year={liunianYear} onViewChange={setView} onYearChange={setLiunianYear} />
+        <div>
+          <ChartBoard chart={displayChart} onStarSelect={(star, palace) => setStarFocus({ star, palaceName: palace.name })} onPalaceSelect={setSelectedPalace} view={view} year={liunianYear} onViewChange={setView} onYearChange={setLiunianYear} />
+          {starFocus && <div style={{ marginTop: 16 }} aria-label="原作者星曜详情">
+            <p className="label-section" style={{ marginBottom: 8 }}>仓库原始星曜资料 · 非个性化流年结论</p>
+            <StarDetailPanel star={starFocus.star} palaceName={starFocus.palaceName} onClose={() => setStarFocus(null)} />
+          </div>}
+        </div>
         <DatasetInsightPanel chart={chart} selectedPalace={selectedPalace} view={view} year={liunianYear} onViewChange={setView} onYearChange={year => { setLiunianYear(year); setView('liunian'); }} />
       </div>
-      <div style={{ maxWidth: 960, margin: '32px auto 0' }}>
+      <details className="card" style={{ maxWidth: 960, margin: '32px auto 0', padding: 16 }}>
+        <summary style={{ cursor: 'pointer', color: 'var(--ac)', fontSize: 15 }}>可选增强 · AI 深度解读与问答</summary>
         <LocalAiPanel key={`${chart.birthInfo.year}-${chart.birthInfo.month}-${chart.birthInfo.day}-${chart.birthInfo.hour}-${chart.birthInfo.gender}`} birthInfo={chart.birthInfo} year={liunianYear} />
-      </div>
+      </details>
     </main>
   );
 }

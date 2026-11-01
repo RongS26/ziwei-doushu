@@ -1,4 +1,6 @@
 import { getReading, validateBirth } from '@/lib/local-reading';
+import { generateChart, setBrightnessSchool } from '@/lib/ziwei/algorithm';
+import { detectPatterns, getMingGongSummary } from '@/lib/ziwei/patterns';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +13,10 @@ export async function POST(request: Request) {
   }
   try {
     const record = await getReading(birth);
-    return Response.json({ key: record.k, topics: record.c, version: 'v4.0-13d' }, {
+    setBrightnessSchool('XD2');
+    const chart = generateChart(birth);
+    return Response.json({ key: record.k, topics: record.c, version: 'v4.0-13d',
+      patterns: detectPatterns(chart), summary: getMingGongSummary(chart) }, {
       headers: { 'Cache-Control': 'no-store' },
     });
   } catch (error) {

@@ -107,6 +107,27 @@ body {
   line-height: 1.6;
 }
 
+/* The published flat components still use pre-2.0 token names. Resolve them
+   through the author's current design system instead of inventing a palette. */
+:root, [data-theme="dark"] {
+  --t-bg: var(--bg-0);
+  --t-surface: var(--bg-1);
+  --t-card: var(--bg-card);
+  --t-text: var(--tx-1);
+  --t-text1: var(--tx-0);
+  --t-text2: var(--tx-2);
+  --t-faint: var(--tx-3);
+  --t-gold: var(--ac);
+  --t-border: var(--bdr);
+  --t-border-acc: var(--ac-bdr);
+}
+.card-glass {
+  background: var(--bg-card);
+  border: 1px solid var(--bdr);
+  box-shadow: var(--sh-sm);
+}
+.card-inner { background: var(--bg-1); border: 1px solid var(--bdr); }
+
 /* ─── 滚动条 ─────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg-1); }
