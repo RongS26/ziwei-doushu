@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Palace, ZiweiChart } from '@/lib/ziwei/types';
 import { TOPIC_LABEL, TOPIC_PALACE_NAME, type TopicKey } from '@/lib/ziwei/db-analysis';
 import { getLiuNianSiHua, getYearBranchIndex } from '@/lib/ziwei/sihua';
@@ -35,35 +35,33 @@ export function annualSummary(chart: ZiweiChart, year: number) {
   return { year, sihua, branch, palace, dx, age, transforms };
 }
 
-function annualText(chart: ZiweiChart, year: number): string {
-  const report = annualSummary(chart, year);
-  if (report.age < 1) return '**【尚未出生】**\n该流年早于农历出生年，不能作为你的个人流年解读。';
-  const stars = report.palace?.stars.filter(star => star.type === 'major').map(star => star.name).join('、') || '空宫，需结合对宫';
-  const focus = PALACE_FOCUS[report.palace?.name || ''] || '对应本命宫位的生活议题';
-  const lines = [
-    `**【${year} ${report.sihua.stemName}${BRANCHES[report.branch]} · 流年规则分析】**`,
-    `农历流年口径，按春节换年；不是公历 1 月 1 日换年。虚岁 ${report.age}。`,
-    '**【年度主轴】**',
-    `采用太岁入宫法：${BRANCHES[report.branch]}年对应本命${report.palace?.name || '未知宫位'}，本宫主星为${stars}。在这套规则下，本年的观察重点是${focus}。这表示观察主题，不能据此断言具体事件。`,
-    '**【所属大限】**',
-    report.dx ? `${report.dx.startAge}–${report.dx.endAge} 虚岁，${report.dx.palaceName}大限。十年背景可围绕${PALACE_FOCUS[report.dx.palaceName] || report.dx.palaceName}理解；所属大限按所选流年重新计算。` : '不在已生成的实际大限区间内，不套用现实当前大限。',
-    '**【当年四化落点】**',
-    ...report.transforms.map(item => `${item.star}化${item.kind} → 本命${item.palace?.name || '未定位'}。${TRANSFORM_MEANING[item.kind]}${item.palace ? `对应议题：${PALACE_FOCUS[item.palace.name] || item.palace.name}。` : ''}`),
-    '**【这一年怎么用】**',
-    `先围绕「${focus}」设一个可检查的年度目标。将化禄领域列为可探索方向，将化忌领域列为需要复盘和预留余量的方向，再用现实信息检验，不把盘面当成事件发生概率。`,
-    '**【分析边界与依据】**',
-    '这是本地新增的确定性规则摘要：太岁入本命宫、年干四化、按农历虚岁查大限。四化表与大限定位复用仓库 sihua.ts / yunxian-context.ts；太岁入宫和文案是本地补充，不是原作者未公开的流年断语。未包含完整流曜、小限、流月或 AI 综合判断。',
-  ];
-  return lines.join('\n\n');
+function plain(text: string) { return text.replace(/\*\*|^#{1,4}\s+/gm, '').trim(); }
+function sections(text: string) {
+  const result: { title: string; lines: string[] }[] = [];
+  for (const line of text.split('\n')) {
+    const heading = line.match(/^(?:\*\*【(.+)】\*\*|#{1,4}\s+(.+))$/);
+    if (heading) result.push({ title: heading[1] || heading[2], lines: [] });
+    else { if (!result.length) result.push({ title: '', lines: [] }); result[result.length - 1].lines.push(line); }
+  }
+  return result;
 }
+function RichText({ text }: { text: string }) {
+  return <>{text.split('\n').map((line, index) => {
+    if (!line.trim()) return null;
+    if (line.trim() === '---') return <hr key={index} />;
+    return <p key={index}>{line.split(/\*\*(.+?)\*\*/).map((part, i) => i % 2 ? <strong key={i}>{part}</strong> : part)}</p>;
+  })}</>;
+}
+const SHORT_TOPIC: Record<TopicKey, string> = { overview: '命格总览', personality: '性格', love: '感情', career: '事业', wealth: '财富', health: '健康', family: '兄弟', children: '子女', move: '迁移', friends: '人际', home: '田宅', spirit: '福德', parents: '父母' };
 
-export default function DatasetInsightPanel({ chart, selectedPalace, view, year: selectedYear, onViewChange, onYearChange }: {
+export default function DatasetInsightPanel({ chart, selectedPalace, view, year: selectedYear, onViewChange, aiPanel }: {
   chart: ZiweiChart; selectedPalace: Palace | null; view: TimeView; year: number;
-  onViewChange: (view: TimeView) => void; onYearChange: (year: number) => void;
+  onViewChange: (view: TimeView) => void; aiPanel?: ReactNode;
 }) {
   const [topics, setTopics] = useState<Partial<Record<TopicKey, string>>>({});
   const [patterns, setPatterns] = useState<Pattern[]>([]);
   const [summary, setSummary] = useState<{ stars: string[]; keywords: string[]; nature: string } | null>(null);
+  const [mode, setMode] = useState<'analysis' | 'ai'>('analysis');
   const [active, setActive] = useState<TopicKey>('overview');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -110,70 +108,78 @@ export default function DatasetInsightPanel({ chart, selectedPalace, view, year:
   useEffect(() => {
     if (!selectedPalace) return;
     const topic = (Object.keys(TOPIC_PALACE_NAME) as TopicKey[]).find(key => TOPIC_PALACE_NAME[key] === selectedPalace.name);
-    if (topic) setActive(topic);
+    if (topic) { setActive(topic); setMode('analysis'); onViewChange('mingpan'); }
+  // Selection is intentionally driven by a new palace click, not by time navigation.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPalace]);
 
-  useEffect(() => { contentRef.current?.scrollTo(0, 0); }, [active, isAnnual, selectedYear]);
+  useEffect(() => { contentRef.current?.scrollTo(0, 0); }, [active, view, selectedYear]);
+
+  const parsed = sections(topics[active] || '');
+  const headline = plain(parsed.find(section => section.title === '一句话定调')?.lines.join('\n') || TOPIC_LABEL[active]);
+  const opening = parsed[0]?.lines.join('\n').trim() || '';
+  const chooseTopic = (topic: TopicKey) => { setActive(topic); onViewChange('mingpan'); };
+  const annual = annualSummary(chart, selectedYear);
+  const dx = chart.daXians[chart.currentDaXianIndex];
 
   return (
-    <aside aria-label="原作者完整解读" className="card-glass rounded-xl overflow-hidden" style={{ minWidth: 0 }}>
-      <div style={{ padding: 16, borderBottom: '1px solid var(--t-border)' }}>
-        <div className="label-section" style={{ marginBottom: 6 }}>ORIGINAL READING · 原作者内容</div>
-        <h2 style={{ fontSize: 22, fontWeight: 600, color: 'var(--t-gold)' }}>{isAnnual ? `${selectedYear} 流年 · 规则摘要` : '本命解读 · 13 个主题'}</h2>
-        <div style={{ display: 'flex', gap: 12, marginTop: 12, color: 'var(--t-gold)' }}>
-          <button onClick={() => onViewChange('mingpan')} aria-pressed={!isAnnual}>本命全文</button>
-          <button onClick={() => onViewChange('liunian')} aria-pressed={isAnnual}>2026–2031 流年</button>
-          <a href="#ziwei-ai" onClick={() => document.getElementById('ziwei-ai')?.closest('details')?.setAttribute('open', '')} style={{ textDecoration: 'underline' }}>向 AI 提问 ↓</a>
+    <section className="zw-reading" aria-label="解读工作台">
+      <div className="zw-reader-toolbar">
+        <div role="tablist" aria-label="阅读方式" className="zw-reader-tabs">
+          <button role="tab" aria-selected={mode === 'analysis'} onClick={() => setMode('analysis')}>命盘分析</button>
+          <button role="tab" aria-selected={mode === 'ai'} onClick={() => setMode('ai')}>AI 对话 <span>✦</span></button>
         </div>
-        <p style={{ fontSize: 12, color: 'var(--t-text2)', marginTop: 8, lineHeight: 1.7 }}>
-          {isAnnual ? '2026 年基准 ＋ 2027–2031 往后五年。本地盘面摘要；完整报告与问答在下方 AI 区域。选择年份会同步更新盘面年干四化。' : '原作者 v4 数据集全文，按当前排盘日期、时辰及性别精确匹配。覆盖 1950–2026 年。本命正文不随大限切换改写；具体问题可使用下方 AI 问答。'}
-        </p>
-        {!isAnnual && <div role="tablist" aria-label="解读主题" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
-          {(Object.keys(TOPIC_LABEL) as TopicKey[]).map(key => (
-            <button role="tab" aria-selected={active === key} key={key} onClick={() => setActive(key)}
-              style={{ padding: '7px 9px', borderRadius: 8, fontSize: 12, cursor: 'pointer', border: '1px solid var(--t-border)', background: active === key ? 'rgba(212,168,67,.18)' : 'transparent', color: active === key ? 'var(--t-gold)' : 'var(--t-text2)' }}>
-              {TOPIC_LABEL[key]}
-            </button>
-          ))}
-        </div>}
-        {isAnnual && <div role="tablist" aria-label="流年年份" style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-          {[2026, 2027, 2028, 2029, 2030, 2031].map(value => <button key={value} role="tab" aria-selected={selectedYear === value} onClick={() => onYearChange(value)}
-            style={{ padding: '7px 12px', border: '1px solid var(--t-border)', borderRadius: 8, color: 'var(--t-gold)', background: selectedYear === value ? 'rgba(212,168,67,.18)' : 'transparent' }}>{value}</button>)}
-        </div>}
-        {isAnnual && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--t-text2)', lineHeight: 1.7 }}>
-          <p>下方为初版盘面摘要。完整 AI 报告和命盘问答请使用页面下方「AI 深度解读与问答」。</p>
-          <button disabled={exporting} onClick={exportMaterial} style={{ marginTop: 8, color: 'var(--t-gold)', textDecoration: 'underline' }}>{exporting ? '正在准备…' : '下载流年深度分析材料'}</button>
-          {exportError && <p role="alert">{exportError}</p>}
-        </div>}
+        <a href="https://github.com/Renhuai123/ziwei-doushu/releases/tag/v4.0-13d" target="_blank" rel="noreferrer">原作者数据 ↗</a>
       </div>
-      {!isAnnual && summary && <div className="card-tinted" style={{ margin: '16px 16px 0', padding: 16 }}>
-        <div className="label-section">原引擎 · 命格概览</div>
-        <div style={{ fontSize: 21, color: 'var(--ac)', marginTop: 6 }}>{summary.stars.length ? summary.stars.join(' · ') : '命宫空宫'} <span style={{ fontSize: 12, color: 'var(--tx-3)' }}>{summary.nature}</span></div>
-        <p style={{ fontSize: 12, color: 'var(--tx-2)', marginTop: 6 }}>{summary.keywords.join(' · ')}</p>
-        {patterns.length > 0 && <details style={{ marginTop: 12, fontSize: 13 }}>
-          <summary style={{ cursor: 'pointer', color: 'var(--ac)' }}>查看原引擎识别的 {patterns.length} 个格局</summary>
-          {patterns.map((pattern, index) => <div key={`${pattern.name}-${index}`} className="card-inner" style={{ padding: 12, marginTop: 8, borderRadius: 8, lineHeight: 1.8 }}>
-            <strong style={{ color: 'var(--ac)' }}>{pattern.name}</strong>
-            <p style={{ color: 'var(--tx-2)' }}>{pattern.description}</p>
-            {pattern.conditions && <p style={{ fontSize: 11, color: 'var(--tx-3)' }}>成立条件：{pattern.conditions.required.join('、')}{pattern.conditions.breaking?.length ? `；限制：${pattern.conditions.breaking.join('、')}` : ''}</p>}
-            {pattern.source && <p style={{ fontSize: 11, color: 'var(--tx-3)' }}>原引擎标注出处：{pattern.source}</p>}
-          </div>)}
-        </details>}
-      </div>}
-      <div ref={contentRef} role="tabpanel" aria-label={isAnnual ? `${selectedYear}流年解读` : TOPIC_LABEL[active]} aria-busy={!isAnnual && loading}
-        style={{ padding: 20, maxHeight: '72vh', overflowY: 'auto', fontSize: 14, lineHeight: 1.9, color: 'var(--t-text)' }}>
-        {!isAnnual && loading && <p role="status">正在读取 {year} 年解读，首次会下载约 2 MB 年份数据，请稍候…</p>}
-        {!isAnnual && error && <div role="alert"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)} style={{ color: 'var(--t-gold)', marginTop: 12 }}>重试读取</button></div>}
-        {(isAnnual || (!loading && !error)) && (isAnnual ? annualText(chart, selectedYear) : topics[active] || '').split('\n').map((line, index) => {
-          const heading = line.match(/^(?:\*\*【(.+)】\*\*|#{1,4}\s+(.+))$/);
-          if (heading) return <h3 key={index} style={{ color: 'var(--t-gold)', fontSize: 16, fontWeight: 600, margin: '18px 0 8px' }}>{heading[1] || heading[2]}</h3>;
-          if (!line.trim()) return <div key={index} style={{ height: 8 }} />;
-          return <p key={index} style={{ overflowWrap: 'anywhere' }}>{line.split(/\*\*(.+?)\*\*/).map((part, i) => i % 2 ? <strong key={i}>{part}</strong> : part)}</p>;
-        })}
+      <div hidden={mode !== 'analysis'} className="zw-analysis-pane">
+        <div role="tablist" aria-label="解读主题" className="zw-topic-nav">
+          {(Object.keys(TOPIC_LABEL) as TopicKey[]).map(key => <button key={key} role="tab" aria-label={TOPIC_LABEL[key]} aria-selected={active === key && view === 'mingpan'} onClick={() => chooseTopic(key)}>{SHORT_TOPIC[key]}</button>)}
+        </div>
+        <div ref={contentRef} className="zw-reading-scroll" role="tabpanel" aria-label={view === 'mingpan' ? TOPIC_LABEL[active] : isAnnual ? `${selectedYear}流年解读` : '大限盘面'} aria-busy={view === 'mingpan' && loading}>
+          {view !== 'mingpan' ? <>
+            <div className="zw-eyebrow">运限盘面 · {isAnnual ? '流年' : '大限'}</div>
+            <h1 className="zw-headline">{isAnnual ? `${selectedYear} 年 · ${annual.sihua.stemName}${BRANCHES[annual.branch]}流年` : dx ? `${dx.startAge}–${dx.endAge} 岁 · ${dx.palaceName}大限` : '尚未进入大限'}</h1>
+            <p className="zw-lead">{isAnnual ? `农历虚岁 ${annual.age} · ${annual.dx ? `${annual.dx.palaceName}大限` : '未进入大限区间'}` : '左侧命盘已叠加所选大限四化。选择流年，可继续查看具体年份。'}</p>
+            <div className="zw-year-callout"><strong>继续看这一年的完整分析</strong><p>将本命、大限和流年材料交给本机 AI，生成六主题报告，也可以直接问事业、感情或具体选择。</p><button onClick={() => setMode('ai')}>在 AI 对话中分析 {selectedYear} 年 ↗</button></div>
+            {isAnnual && annual.age > 0 && <>
+              <h2 className="zw-content-title">盘面落点</h2>
+              <div className="zw-quick-insights zw-year-facts">
+                <article><small>太岁所在本命宫</small><h3>{annual.palace?.name || '未定位'}</h3><p>{PALACE_FOCUS[annual.palace?.name || '']}</p></article>
+                <article><small>十年背景</small><h3>{annual.dx ? `${annual.dx.startAge}–${annual.dx.endAge} 岁` : '区间外'}</h3><p>{annual.dx?.palaceName || '不套用当前大限'}</p></article>
+                <article><small>本宫主星</small><h3>{annual.palace?.stars.filter(star => star.type === 'major').map(star => star.name).join(' · ') || '空宫'}</h3><p>{annual.palace?.stars.some(star => star.type === 'major') ? '结合三方四正合参' : '需结合对宫，不单独定论'}</p></article>
+              </div>
+              <h2 className="zw-content-title">年干四化 · 盘面叠层</h2>
+              <div className="zw-transform-list">{annual.transforms.map(item => <article key={item.kind}><strong>{item.star}化{item.kind}<small>本命{item.palace?.name || '未定位'}</small></strong><p>{TRANSFORM_MEANING[item.kind]}</p></article>)}</div>
+            </>}
+            {isAnnual && annual.age < 1 && <p role="alert">该年份早于出生年，不能作为个人流年解读。</p>}
+            <details className="zw-source"><summary>盘面口径与材料下载</summary><p>原作者 v4 提供本命全文；此处为本地盘面整理。太岁入宫与年干四化属于所标示的观察口径，不是原作者的完整流年断语。AI 综合报告另行采用已注明的方法与引用，不能将四化叠层直接当成事件结论。</p><button disabled={exporting} onClick={exportMaterial}>{exporting ? '正在准备…' : `下载 ${selectedYear} 年分析材料`}</button>{exportError && <p role="alert">{exportError}</p>}</details>
+            <button className="zw-text-button" onClick={() => onViewChange('mingpan')}>← 返回原作者本命全文</button>
+          </> : <>
+            {loading && <div className="zw-loading" role="status"><span />正在读取原作者的 13 个主题全文…<small>首次需下载约 2 MB 年份数据</small></div>}
+            {error && <div className="zw-year-callout" role="alert"><p>{error}</p><button onClick={() => setAttempt(value => value + 1)}>重试读取</button></div>}
+            {!loading && !error && <>
+              <div className="zw-meta-pills"><span>本命 · {TOPIC_LABEL[active]}</span>{summary && <span>{summary.stars.length ? summary.stars.join(' · ') : '命宫空宫'}</span>}{patterns.slice(0, 3).map((pattern, index) => <span key={index}>{pattern.name}</span>)}</div>
+              <div className="zw-eyebrow">一句话定调 · 原作者原文</div>
+              <h1 className="zw-headline">{headline}</h1>
+              <div className="zw-lead"><RichText text={opening.split(/\n\s*\n/)[0] || ''} /></div>
+              {active === 'overview' && <div className="zw-quick-insights">{(['personality', 'career', 'love'] as TopicKey[]).map((topic, index) => {
+                const first = plain(sections(topics[topic] || '')[0]?.lines.join('\n') || '');
+                const excerpt = first.length > 95 ? `${first.slice(0, 95)}…` : first;
+                return <button key={topic} onClick={() => chooseTopic(topic)}><small>0{index + 1} / {['性格线索', '事业方向', '关系模式'][index]}</small><p>{excerpt}</p><span>阅读{SHORT_TOPIC[topic]}全文 →</span></button>;
+              })}</div>}
+              <div className="zw-original-content" data-testid="original-reading-body">
+                {parsed.filter(section => section.title !== '一句话定调').map((section, index) => <section key={index}>
+                  {section.title && <h2>{section.title}</h2>}
+                  {index === 0 ? <RichText text={section.lines.join('\n').trim().split(/\n\s*\n/).slice(1).join('\n\n')} /> : <RichText text={section.lines.join('\n')} />}
+                </section>)}
+              </div>
+              {patterns.length > 0 && <details className="zw-source"><summary>原引擎识别的 {patterns.length} 个格局 · 查看成立条件</summary>{patterns.map((pattern, index) => <article key={index}><h3>{pattern.name}</h3><p>{pattern.description}</p>{pattern.conditions && <p>成立条件：{pattern.conditions.required.join('、')}{pattern.conditions.breaking?.length ? `；限制：${pattern.conditions.breaking.join('、')}` : ''}</p>}{pattern.source && <small>原引擎标注出处：{pattern.source}</small>}</article>)}</details>}
+              <details className="zw-source"><summary>原文来源与口径</summary><p>按公历日期、时辰与性别精确匹配原作者 v4 数据集，全文保留，标题与导读从原文提取。本命正文不随所选流年改写。</p><p>王多鱼AI · 紫微斗数开源解读数据集 v4.0 · CC BY 4.0（倪师引文另依原许可）。传统文化学习参考。</p></details>
+            </>}
+          </>}
+        </div>
       </div>
-      <p style={{ padding: '12px 16px', fontSize: 11, color: 'var(--t-text2)', borderTop: '1px solid var(--t-border)', lineHeight: 1.7 }}>
-        {isAnnual ? <>本地初版摘要，采用太岁及年干四化，尚非倪师深度报告。方法研究与待办见 <a href="https://github.com/RongS26/ziwei-doushu/blob/main/docs/LOCAL_LEARNING_LOG.md" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>学习记录</a>。</> : <>来源：<a href="https://github.com/Renhuai123/ziwei-doushu/releases/tag/v4.0-13d" target="_blank" rel="noreferrer" style={{ textDecoration: 'underline' }}>王多鱼AI · 紫微斗数开源解读数据集 v4.0</a> · CC BY 4.0（倪师引文另依原许可）。</>}传统文化学习参考。
-      </p>
-    </aside>
+      <div hidden={mode !== 'ai'} className="zw-ai-content">{aiPanel}</div>
+    </section>
   );
 }
