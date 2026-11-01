@@ -1,7 +1,9 @@
 # 本地解读增强版：启动、学习与接力
 
-维护仓库：https://github.com/RongS26/ziwei-doushu  
-上游：https://github.com/Renhuai123/ziwei-doushu  
+维护仓库：https://github.com/RongS26/ziwei-doushu
+
+上游：https://github.com/Renhuai123/ziwei-doushu
+
 上游学习基线：`495b79e`（2026-11-01 拉取）。
 
 ## 换电脑快速运行
