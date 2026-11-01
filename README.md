@@ -2,7 +2,7 @@
 
 # 紫微斗数 · 开源排盘引擎
 
-> **RongS26 本地增强版**：已接入原作者 13 主题本命全文。换电脑启动、流年研究、实现边界和待办见 [LOCAL_GUIDE.md](./LOCAL_GUIDE.md) 与 [学习记录](./docs/LOCAL_LEARNING_LOG.md)。流年规则摘要不等于已完成的 AI 深度解读。
+> **RongS26 本地增强版**：原作者 13 主题本命全文 ＋ 本机 Codex 流年深度报告和命盘问答。换电脑启动、使用方式、研究依据及边界见 [LOCAL_GUIDE.md](./LOCAL_GUIDE.md) 与 [学习记录](./docs/LOCAL_LEARNING_LOG.md)。原作者本命断语、盘面摘要与新增 AI 综合解读分别标注。
 
 ### 算法是公开的传统智慧，不应该被锁在围墙里
 

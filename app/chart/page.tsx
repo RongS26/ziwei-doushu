@@ -7,6 +7,7 @@ import TimeNav, { type TimeView } from '@/components/TimeNav';
 import { generateChart, setBrightnessSchool } from '@/lib/ziwei/algorithm';
 import type { BirthInfo, ZiweiChart, Palace } from '@/lib/ziwei/types';
 import { getDaXianIndexForYear } from '@/lib/ziwei/yunxian-context';
+import LocalAiPanel from '@/components/LocalAiPanel';
 
 /**
  * 命盘页 —— 开源版「排盘引擎 Demo」
@@ -75,6 +76,9 @@ export default function ChartPage() {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,480px)] gap-5 mt-4 items-start">
         <ChartBoard chart={displayChart} onPalaceSelect={setSelectedPalace} view={view} year={liunianYear} onViewChange={setView} onYearChange={setLiunianYear} />
         <DatasetInsightPanel chart={chart} selectedPalace={selectedPalace} view={view} year={liunianYear} onViewChange={setView} onYearChange={year => { setLiunianYear(year); setView('liunian'); }} />
+      </div>
+      <div style={{ maxWidth: 960, margin: '32px auto 0' }}>
+        <LocalAiPanel key={`${chart.birthInfo.year}-${chart.birthInfo.month}-${chart.birthInfo.day}-${chart.birthInfo.hour}-${chart.birthInfo.gender}`} birthInfo={chart.birthInfo} year={liunianYear} />
       </div>
     </main>
   );

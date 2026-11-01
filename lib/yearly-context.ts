@@ -30,7 +30,7 @@ export function yearlyPositions(chart: ZiweiChart, year: number) {
 
 interface SourceEntry { quote: string; h2: string; t_hms: string; part: number; bvid: string }
 
-export async function buildYearlyMaterial(birthValue: unknown, yearValue: unknown) {
+export async function buildYearlyMaterial(birthValue: unknown, yearValue: unknown, relatedYears: number[] = []) {
   const birth = validateBirth(birthValue);
   if (!Number.isInteger(yearValue) || (yearValue as number) < 1900 || (yearValue as number) > 2200) throw new Error('流年年份无效。');
   const year = yearValue as number;
@@ -48,7 +48,8 @@ export async function buildYearlyMaterial(birthValue: unknown, yearValue: unknow
     return { id: `T${index + 1}`, title: entry.h2, quote: entry.quote, url: `https://www.bilibili.com/video/${entry.bvid}?p=${entry.part}&t=${seconds}` };
   });
   const selected = yearlyPositions(chart, year);
-  const comparison = [2026, 2027, 2028, 2029, 2030, 2031].map(value => yearlyPositions(chart, value));
+  const comparisonYears = [...new Set([2026, 2027, 2028, 2029, 2030, 2031, ...relatedYears.filter(value => Number.isInteger(value) && value >= chart.lunarInfo.lunarYear && value <= 2200)])];
+  const comparison = comparisonYears.map(value => yearlyPositions(chart, value));
   const facts = [
     { id: 'BIRTH', kind: 'computed', data: { birth, lunarYear: chart.lunarInfo.lunarYear, wuxing: chart.wuxingJuName, mingBranch: chart.mingGongBranch, shenBranch: chart.shenGongBranch } },
     ...chart.palaces.map(palace => ({ id: `P${palace.branch}`, kind: 'computed', data: { ...palace, branchName: BRANCHES[palace.branch] } })),

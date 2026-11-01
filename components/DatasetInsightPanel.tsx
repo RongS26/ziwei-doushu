@@ -119,9 +119,10 @@ export default function DatasetInsightPanel({ chart, selectedPalace, view, year:
         <div style={{ display: 'flex', gap: 12, marginTop: 12, color: 'var(--t-gold)' }}>
           <button onClick={() => onViewChange('mingpan')} aria-pressed={!isAnnual}>本命全文</button>
           <button onClick={() => onViewChange('liunian')} aria-pressed={isAnnual}>2026–2031 流年</button>
+          <a href="#ziwei-ai" style={{ textDecoration: 'underline' }}>向 AI 提问 ↓</a>
         </div>
         <p style={{ fontSize: 12, color: 'var(--t-text2)', marginTop: 8, lineHeight: 1.7 }}>
-          {isAnnual ? '2026 年基准 ＋ 2027–2031 往后五年。本地规则分析，非原作者流年断语或 AI 预测；选择年份会同步更新盘面年干四化。' : '原作者 v4 数据集全文，按当前排盘日期、时辰及性别精确匹配。覆盖 1950–2026 年。本命正文不随大限切换改写；自由追问需另接 AI。'}
+          {isAnnual ? '2026 年基准 ＋ 2027–2031 往后五年。本地盘面摘要；完整报告与问答在下方 AI 区域。选择年份会同步更新盘面年干四化。' : '原作者 v4 数据集全文，按当前排盘日期、时辰及性别精确匹配。覆盖 1950–2026 年。本命正文不随大限切换改写；具体问题可使用下方 AI 问答。'}
         </p>
         {!isAnnual && <div role="tablist" aria-label="解读主题" style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
           {(Object.keys(TOPIC_LABEL) as TopicKey[]).map(key => (
@@ -136,7 +137,7 @@ export default function DatasetInsightPanel({ chart, selectedPalace, view, year:
             style={{ padding: '7px 12px', border: '1px solid var(--t-border)', borderRadius: 8, color: 'var(--t-gold)', background: selectedYear === value ? 'rgba(212,168,67,.18)' : 'transparent' }}>{value}</button>)}
         </div>}
         {isAnnual && <div style={{ marginTop: 12, fontSize: 12, color: 'var(--t-text2)', lineHeight: 1.7 }}>
-          <p>深度报告尚待接入模型。已准备本命全文、大限、小限本/对宫和课程依据；下方仍为初版摘要。</p>
+          <p>下方为初版盘面摘要。完整 AI 报告和命盘问答请使用页面下方「AI 深度解读与问答」。</p>
           <button disabled={exporting} onClick={exportMaterial} style={{ marginTop: 8, color: 'var(--t-gold)', textDecoration: 'underline' }}>{exporting ? '正在准备…' : '下载流年深度分析材料'}</button>
           {exportError && <p role="alert">{exportError}</p>}
         </div>}
